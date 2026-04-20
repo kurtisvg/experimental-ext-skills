@@ -13,6 +13,7 @@ const server = new Server(
         listChanged: false,
       },
       tools: {},
+      resources: {},
     } as any,
   }
 );
@@ -47,10 +48,60 @@ const weatherSkill: ServerSkill = {
   },
 };
 
-setupSkills(server, [weatherSkill]);
+const knowledgeBaseSkill: ServerSkill = {
+  skill: {
+    name: "knowledge-base",
+    description: "A skill providing critical domain knowledge via text resources.",
+  },
+  instructions: () => {
+    return "# Knowledge Base\nRead the provided internal resources to answer questions about the project.";
+  },
+  contents: () => {
+    return {
+      resources: [
+        {
+          uri: "internal://docs/project-guidelines.txt",
+          name: "Project Guidelines",
+          mimeType: "text/plain",
+          description: "Core rules and guidelines for the project.",
+        },
+        {
+          uri: "internal://docs/architecture.txt",
+          name: "Architecture Overview",
+          mimeType: "text/plain",
+        }
+      ]
+    };
+  }
+};
+
+setupSkills(server, [weatherSkill, knowledgeBaseSkill]);
 
 // The tools in the skill generally need to be routed if the client invokes them via tools/call.
-import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
+  const uri = request.params.uri;
+  if (uri === "internal://docs/project-guidelines.txt") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "text/plain",
+        text: "Rule 1: No magic numbers. Rule 2: Always validate inputs."
+      }]
+    };
+  }
+  if (uri === "internal://docs/architecture.txt") {
+    return {
+      contents: [{
+        uri,
+        mimeType: "text/plain",
+        text: "The architecture consists of an SDK layer, a Server layer, and a Client agent."
+      }]
+    };
+  }
+  throw new Error(`Resource not found: ${uri}`);
+});
 
 server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
   if (request.params.name === "get_weather") {
